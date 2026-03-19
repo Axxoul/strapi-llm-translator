@@ -69,16 +69,16 @@
     "displayName": "LLM Translator",
     "description": "AI-Powered Content Translation for Strapi"
   },
-  "name": "strapi-llm-translator",
+  "name": "strapi-llm-translator-ax",
   "description": "AI-Powered Content Translation for Strapi",
   "license": "MIT",
-  "author": "grenzbotin <franziska@vulpis.dev>",
+  "author": "Axxoul <franziska@vulpis.dev>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/grenzbotin/strapi-llm-translator.git"
+    "url": "https://github.com/Axxoul/strapi-llm-translator-ax.git"
   },
   "bugs": {
-    "url": "https://github.com/grenzbotin/strapi-llm-translator/issues"
+    "url": "https://github.com/Axxoul/strapi-llm-translator-ax/issues"
   },
-  "homepage": "https://github.com/grenzbotin/strapi-llm-translator#readme"
+  "homepage": "https://github.com/Axxoul/strapi-llm-translator-ax#readme"
 }
