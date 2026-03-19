@@ -122,7 +122,15 @@ const LLMButton = () => {
         targetLanguage: currentLocale,
       };
 
-      const token = JSON.parse(localStorage.getItem('jwtToken') || 'null');
+      // Match Strapi's token retrieval: localStorage first, then cookie fallback
+      const fromStorage = localStorage.getItem('jwtToken');
+      const token = fromStorage
+        ? JSON.parse(fromStorage)
+        : document.cookie
+            .split(';')
+            .map((c) => c.trim().split('='))
+            .find(([k]) => k === 'jwtToken')?.[1]
+          ?? null;
       const url = `${window.strapi.backendURL}/${PLUGIN_ID}/generate`;
 
       const fetchResponse = await fetch(url, {
