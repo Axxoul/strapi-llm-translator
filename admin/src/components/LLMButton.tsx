@@ -3,7 +3,6 @@ import { CheckCircle, Magic, WarningCircle } from '@strapi/icons';
 import { Button } from '@strapi/design-system';
 import {
   unstable_useContentManagerContext as useContentManagerContext,
-  useFetchClient,
   useNotification,
 } from '@strapi/strapi/admin';
 import { useState } from 'react';
@@ -26,7 +25,6 @@ const LLMButton = () => {
 
   const { formatMessage } = useIntl();
   const { form, contentType, components } = useContentManagerContext();
-  const { post } = useFetchClient();
 
   const { toggleNotification } = useNotification();
 
@@ -124,9 +122,43 @@ const LLMButton = () => {
         targetLanguage: currentLocale,
       };
 
-      const { data: response } = await post<TranslationResponse>(`/${PLUGIN_ID}/generate`, {
-        ...dataToSend,
+      const token = JSON.parse(localStorage.getItem('jwtToken') || 'null');
+      const url = `${window.strapi.backendURL}/${PLUGIN_ID}/generate`;
+
+      const fetchResponse = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(dataToSend),
       });
+
+      if (!fetchResponse.ok) {
+        throw new Error(`HTTP ${fetchResponse.status}`);
+      }
+
+      const reader = fetchResponse.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+      }
+
+      // Parse SSE: find the last "data: " line (ignore heartbeat comments)
+      let response: TranslationResponse | null = null;
+      for (const line of buffer.split('\n')) {
+        if (line.startsWith('data: ')) {
+          response = JSON.parse(line.slice(6));
+        }
+      }
+
+      if (!response) {
+        throw new Error('No data received from server');
+      }
 
       if (!response.meta.ok) {
         throw new Error(response.meta.message);

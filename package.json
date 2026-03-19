@@ -1,5 +1,5 @@
 {
-  "version": "0.10.0",
+  "version": "0.11.0",
   "keywords": [
     "strapi",
     "plugin",
@@ -69,16 +69,16 @@
     "displayName": "LLM Translator",
     "description": "AI-Powered Content Translation for Strapi"
   },
-  "name": "strapi-llm-translator-ax",
+  "name": "strapi-llm-translator-axe",
   "description": "AI-Powered Content Translation for Strapi",
   "license": "MIT",
   "author": "Axxoul <franziska@vulpis.dev>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Axxoul/strapi-llm-translator-ax.git"
+    "url": "https://github.com/Axxoul/strapi-llm-translator-axe.git"
   },
   "bugs": {
-    "url": "https://github.com/Axxoul/strapi-llm-translator-ax/issues"
+    "url": "https://github.com/Axxoul/strapi-llm-translator-axe/issues"
   },
-  "homepage": "https://github.com/Axxoul/strapi-llm-translator-ax#readme"
+  "homepage": "https://github.com/Axxoul/strapi-llm-translator-axe#readme"
 }

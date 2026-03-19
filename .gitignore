@@ -138,3 +138,19 @@ yarn-error.log
 
 coverage
 .claude/settings.local.json
+dist/_chunks/App-Boy_i56G.mjs
+dist/_chunks/App-COSMdnpL.js
+dist/_chunks/de-CvAR4QXO.js
+dist/_chunks/de-D3VSS3Mq.mjs
+dist/_chunks/en-BjVvIBv8.js
+dist/_chunks/en-BnBUQVgF.mjs
+dist/_chunks/index-BEhzLY5B.mjs
+dist/_chunks/index-DuLkx3CK.js
+dist/admin/index.js
+dist/admin/index.mjs
+dist/server/index.js
+dist/server/index.mjs
+dist/_chunks/de-CvAR4QXO.js
+dist/_chunks/de-D3VSS3Mq.mjs
+dist/_chunks/en-BjVvIBv8.js
+dist/_chunks/en-BnBUQVgF.mjs

@@ -1,8 +1,36 @@
 import { GenerateRequestBody, PluginUserConfig, RequestContext, StrapiContext } from 'src/types';
 
+const HEARTBEAT_INTERVAL_MS = 15_000;
+
 const controllers = ({ strapi }: StrapiContext) => ({
-  // Genertate translations
+  // Generate translations (SSE with heartbeats to avoid Heroku 30s timeout)
   async generate(ctx: RequestContext & { request: { body: GenerateRequestBody } }) {
+    const res = ctx.res;
+    const req = ctx.req;
+
+    // Bypass Koa's built-in response handling
+    ctx.respond = false;
+
+    // SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+
+    // Send heartbeat comments every 15s to reset Heroku's idle timer
+    const heartbeat = setInterval(() => {
+      res.write(': heartbeat\n\n');
+    }, HEARTBEAT_INTERVAL_MS);
+
+    // Clean up on client disconnect
+    let clientDisconnected = false;
+    req.on('close', () => {
+      clientDisconnected = true;
+      clearInterval(heartbeat);
+    });
+
     try {
       const { fields, components, targetLanguage, contentType } = ctx.request.body;
       const result = await strapi
@@ -12,18 +40,22 @@ const controllers = ({ strapi }: StrapiContext) => ({
           targetLanguage,
         });
 
-      ctx.status = result.meta.status;
-      ctx.body = result;
+      clearInterval(heartbeat);
+      if (!clientDisconnected) {
+        res.write(`data: ${JSON.stringify(result)}\n\n`);
+        res.end();
+      }
     } catch (error) {
       console.error('Error in generate controller:', error);
-      ctx.status = 500;
-      ctx.body = {
-        meta: {
-          ok: false,
-          status: 500,
-          message: 'Internal server error',
-        },
-      };
+      clearInterval(heartbeat);
+      if (!clientDisconnected) {
+        res.write(
+          `data: ${JSON.stringify({
+            meta: { ok: false, status: 500, message: 'Internal server error' },
+          })}\n\n`
+        );
+        res.end();
+      }
     }
   },
 

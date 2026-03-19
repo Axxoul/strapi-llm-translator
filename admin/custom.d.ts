@@ -4,6 +4,15 @@ declare module '@strapi/design-system';
 declare module '@strapi/design-system/*';
 declare module '@strapi/design-system';
 
+declare global {
+  interface Window {
+    strapi: {
+      backendURL: string;
+      [key: string]: any;
+    };
+  }
+}
+
 export interface LLMGenerateRequestBody {
   contentType: ContentType;
   fields: Record<string, any>;

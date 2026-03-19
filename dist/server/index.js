@@ -45,26 +45,52 @@ const config = {
   }
 };
 const contentTypes = {};
+const HEARTBEAT_INTERVAL_MS = 15e3;
 const controllers$1 = ({ strapi: strapi2 }) => ({
-  // Genertate translations
+  // Generate translations (SSE with heartbeats to avoid Heroku 30s timeout)
   async generate(ctx) {
+    const res = ctx.res;
+    const req = ctx.req;
+    ctx.respond = false;
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no"
+    });
+    const heartbeat = setInterval(() => {
+      res.write(": heartbeat\n\n");
+    }, HEARTBEAT_INTERVAL_MS);
+    let clientDisconnected = false;
+    req.on("close", () => {
+      clientDisconnected = true;
+      clearInterval(heartbeat);
+    });
     try {
       const { fields, components, targetLanguage, contentType } = ctx.request.body;
       const result = await strapi2.plugin("strapi-llm-translator").service("llm-service").generateWithLLM(contentType, fields, components, {
         targetLanguage
       });
-      ctx.status = result.meta.status;
-      ctx.body = result;
+      clearInterval(heartbeat);
+      if (!clientDisconnected) {
+        res.write(`data: ${JSON.stringify(result)}
+
+`);
+        res.end();
+      }
     } catch (error) {
       console.error("Error in generate controller:", error);
-      ctx.status = 500;
-      ctx.body = {
-        meta: {
-          ok: false,
-          status: 500,
-          message: "Internal server error"
-        }
-      };
+      clearInterval(heartbeat);
+      if (!clientDisconnected) {
+        res.write(
+          `data: ${JSON.stringify({
+            meta: { ok: false, status: 500, message: "Internal server error" }
+          })}
+
+`
+        );
+        res.end();
+      }
     }
   },
   // Get the configuration
@@ -168,11 +194,18 @@ const safeJSONParse = (content) => {
   }
   throw new Error("Invalid response format - not an object");
 };
-const llmClient = new openai.OpenAI({
-  baseURL: process.env.STRAPI_ADMIN_LLM_TRANSLATOR_LLM_BASE_URL ?? DEFAULT_LLM_BASE_URL,
-  apiKey: process.env.LLM_TRANSLATOR_LLM_API_KEY ?? "not_set"
-});
-const LLM_MODEL = process.env.STRAPI_ADMIN_LLM_TRANSLATOR_LLM_MODEL ?? DEFAULT_LLM_MODEL;
+const getEffectiveBaseUrl = (userConfig) => {
+  return userConfig?.llmBaseUrl || process.env.STRAPI_ADMIN_LLM_TRANSLATOR_LLM_BASE_URL || DEFAULT_LLM_BASE_URL;
+};
+const getEffectiveModel = (userConfig) => {
+  return userConfig?.llmModel || process.env.STRAPI_ADMIN_LLM_TRANSLATOR_LLM_MODEL || DEFAULT_LLM_MODEL;
+};
+const getLLMClient = (userConfig) => {
+  return new openai.OpenAI({
+    baseURL: getEffectiveBaseUrl(userConfig),
+    apiKey: process.env.LLM_TRANSLATOR_LLM_API_KEY ?? "not_set"
+  });
+};
 const BATCH_SIZE = 10;
 const deepMerge = (target, source) => {
   const output = { ...target };
@@ -342,7 +375,7 @@ const llmService = ({ strapi: strapi2 }) => ({
           const translationPayload = prepareTranslationPayload(batch);
           const prompt = buildPrompt(translationPayload, config2.targetLanguage);
           const response = await callLLMProvider(prompt, systemPrompt, userConfig);
-          return await parseLLMResponse(response);
+          return await parseLLMResponse(response, userConfig);
         })
       );
       const translatedData = translatedResults.reduce((acc, curr) => {
@@ -410,9 +443,10 @@ const getUserConfig = async () => {
 const buildSystemPrompt = async (userConfig) => {
   return `${userConfig?.systemPrompt || DEFAULT_SYSTEM_PROMPT} ${SYSTEM_PROMPT_APPENDIX}`;
 };
-const createLLMRequest = (messages, temperature = 0.1) => {
-  return llmClient.chat.completions.create({
-    model: LLM_MODEL,
+const createLLMRequest = (messages, temperature = 0.1, userConfig) => {
+  const client = getLLMClient(userConfig);
+  return client.chat.completions.create({
+    model: getEffectiveModel(userConfig),
     messages,
     temperature,
     response_format: { type: "json_object" }
@@ -430,25 +464,30 @@ const callLLMProvider = async (prompt, systemPrompt, userConfig) => {
         content: prompt
       }
     ],
-    userConfig?.temperature ?? DEFAULT_LLM_TEMPERATURE
+    userConfig?.temperature ?? DEFAULT_LLM_TEMPERATURE,
+    userConfig
   );
 };
-const requestJSONCorrection = async (invalidJson) => {
-  const response = await createLLMRequest([
-    {
-      role: "system",
-      content: SYSTEM_PROMPT_FIX
-    },
-    {
-      role: "user",
-      content: `${USER_PROMPT_FIX_PREFIX} ${invalidJson}`
-    }
-  ]);
+const requestJSONCorrection = async (invalidJson, userConfig) => {
+  const response = await createLLMRequest(
+    [
+      {
+        role: "system",
+        content: SYSTEM_PROMPT_FIX
+      },
+      {
+        role: "user",
+        content: `${USER_PROMPT_FIX_PREFIX} ${invalidJson}`
+      }
+    ],
+    void 0,
+    userConfig
+  );
   const correctedContent = response.choices[0]?.message?.content;
   if (!correctedContent) throw new Error("No content in correction response");
   return safeJSONParse(correctedContent.trim());
 };
-const parseLLMResponse = async (response) => {
+const parseLLMResponse = async (response, userConfig) => {
   try {
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No content in response");
@@ -462,7 +501,7 @@ const parseLLMResponse = async (response) => {
         return safeJSONParse(balancedContent);
       } catch (secondError) {
         console.error("Second parse attempt failed:", secondError);
-        return await requestJSONCorrection(cleanContent);
+        return await requestJSONCorrection(cleanContent, userConfig);
       }
     }
   } catch (error) {
